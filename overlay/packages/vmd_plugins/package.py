@@ -3,15 +3,15 @@ import os
 import shutil
 
 
-class VmdCustomPlugins(Package):
+class VmdPlugins(Package):
     """Custom VMD plugin bundle layered on top of VMD 2.0.0a9"""
 
     homepage = "https://www.ks.uiuc.edu/Research/vmd/"
 
     version(
-        "1.9.4a55-plugins",
-        sha256="3bc9c5b27eb1434f20d17bc1b75ddf3b3ea47924a8496dcc790be8f0a47d91a4",
-        url="file://{0}/vmd-1.9.4a55.bin.LINUXAMD64-CUDA102-OptiX650-OSPRay185-RTXRTRT.opengl.tar.gz".format(
+        "1.9.4a57",
+        sha256="de278d0c5d969336d89068e0806fb50aaa0cb0f546ba985d840b279357860679",
+        url="file://{0}/vmd-1.9.4a57.src.tar.gz".format(
             os.getcwd()
         ),
     )
@@ -46,16 +46,49 @@ class VmdCustomPlugins(Package):
     # ------------------------------------------------------------------
 
     depends_on("vmd@2.0.0a9")
+    depends_on("tcl@8.6")
     depends_on("tcl-tcllib")
+    depends_on("gmake", type="build")
+    # depends_on("imagemagick", type="build")
+    # depends_on("latex2html", type="build")
 
+    def patch(self):
+        src = 'plugins/molfile_plugin/src/qcschemaplugin.c'
+        # Ensure intptr_t is available
+        filter_file(
+            r'#include <stdio\.h>',
+            '#include <stdio.h>\n#include <stdint.h>',
+            src
+        )
+        # Fix pointer-to-int assignments that break under GCC 14
+        filter_file(
+            r'data->totalcharge = aux_value->u\.object\.values\[j\]\.value;',
+            'data->totalcharge = (int)(intptr_t)aux_value->u.object.values[j].value;',
+            src
+        )
+        filter_file(
+            r'data->multiplicity = aux_value->u\.object\.values\[j\]\.value;',
+            'data->multiplicity = (int)(intptr_t)aux_value->u.object.values[j].value;',
+            src
+        )
+        # Skip autoimd doc build - requires LaTeX/ImageMagick, not needed for plugins
+        filter_file(
+            r'doc/ug\.pdf',
+            '',
+            'plugins/autoimd/Makefile'
+        )
     # ------------------------------------------------------------------
     # Build setup
     # ------------------------------------------------------------------
 
     def setup_build_environment(self, env):
-        tcl = self.spec["tcl-tcllib"]
+        tcl = self.spec["tcl"]
         env.set("TCLINC", f"-I{tcl.prefix.include}")
         env.set("TCLLIB", f"-L{tcl.prefix.lib}")
+
+        # env.append_flags("CFLAGS", "-fcommon")
+        # env.append_flags("CFLAGS", "-Wno-error")
+        # env.append_flags("CFLAGS", "-Wno-int-conversion")
 
     # ------------------------------------------------------------------
     # Install
@@ -76,24 +109,32 @@ class VmdCustomPlugins(Package):
             shutil.rmtree(os.path.join(plugins_dir, d), ignore_errors=True)
 
         install_tree(
-            self.stage.resource_path("topotools"),
+            os.path.join(self.stage.source_path, "topotools"),
             os.path.join(plugins_dir, "topotools"),
         )
 
         install_tree(
-            self.stage.resource_path("pbctools"),
+            os.path.join(self.stage.source_path, "pbctools"),
             os.path.join(plugins_dir, "pbctools"),
         )
 
         install_tree(
-            self.stage.resource_path("mergetools"),
+            os.path.join(self.stage.source_path, "mergetools"),
             os.path.join(plugins_dir, "mergetools"),
         )
 
         with working_dir(plugins_dir):
 
             # Patch Tcl version
-            filter_file("tcl8.5", "tcl8.6", recursive=True)
+            for root, _, files in os.walk(plugins_dir):
+                for filename in files:
+                    path = os.path.join(root, filename)
+
+                    # Only touch regular files
+                    if not os.path.isfile(path):
+                        continue
+
+                    filter_file("tcl8.5", "tcl8.6", path)
 
             # Add mergetools to build list
             makefile = os.path.join(plugins_dir, "Makefile")
