@@ -16,7 +16,7 @@ class VmdPlugins(Package):
         ),
     )
 
-    manual_download = True
+    # manual_download = True
 
 
     # ------------------------------------------------------------------
@@ -26,7 +26,7 @@ class VmdPlugins(Package):
     resource(
         name="topotools",
         git="https://github.com/jotelha/topotools.git",
-        commit="156faf9",
+        commit="156faf91ef37a5d8d2ab8d4655c9a0b9c388ee5f",
     )
 
     resource(
@@ -48,6 +48,7 @@ class VmdPlugins(Package):
     depends_on("vmd@2.0.0a9")
     depends_on("tcl@8.6")
     depends_on("tcl-tcllib")
+    depends_on("netcdf-c")
     depends_on("gmake", type="build")
     # depends_on("imagemagick", type="build")
     # depends_on("latex2html", type="build")
@@ -85,6 +86,9 @@ class VmdPlugins(Package):
         tcl = self.spec["tcl"]
         env.set("TCLINC", f"-I{tcl.prefix.include}")
         env.set("TCLLIB", f"-L{tcl.prefix.lib}")
+
+        netcdf = self.spec["netcdf-c"]
+        env.set("LIBRARY_PATH", netcdf.prefix.lib)
 
         # env.append_flags("CFLAGS", "-fcommon")
         # env.append_flags("CFLAGS", "-Wno-error")
