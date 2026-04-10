@@ -78,6 +78,12 @@ class VmdPlugins(Package):
             '',
             'plugins/autoimd/Makefile'
         )
+        # Skip psfgen doc build - also requires LaTeX
+        filter_file(
+            r'doc/ug.pdf',
+            '',
+            'plugins/psfgen/Makefile'
+        )
     # ------------------------------------------------------------------
     # Build setup
     # ------------------------------------------------------------------
