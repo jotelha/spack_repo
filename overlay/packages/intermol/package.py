@@ -17,7 +17,7 @@ class Intermol(PythonPackage):
     )
 
     # --- Python ---
-    depends_on("python@3.10", type=("build", "run"))
+    depends_on("python@3.10:", type=("build", "run"))
     depends_on("py-pip", type="build")
 
     # REQUIRED for pyproject.toml / PEP517
@@ -30,11 +30,30 @@ class Intermol(PythonPackage):
     depends_on("py-six", type=("build", "run"))
 
     # --- External MD engines ---
-    depends_on("gromacs", type="run")
-    depends_on("lammps", type="run")
+    # gromacs and lammps are called at runtime via shell; they are loaded
+    # separately as RCCS system modules, so we don't declare them as spack deps.
 
     # InterMol uses entry points / scripts
     install_time_test_callbacks = ["import_test"]
+
+    @run_before("install")
+    def patch_versioneer_py3_12(self):
+        """Fix versioneer.py incompatibilities with Python 3.12+:
+        - SafeConfigParser removed → use RawConfigParser
+        - readfp() removed → use read_file()
+        """
+        filter_file(
+            "configparser.SafeConfigParser()",
+            "configparser.RawConfigParser()",
+            "versioneer.py",
+            string=True,
+        )
+        filter_file(
+            "parser.readfp(f)",
+            "parser.read_file(f)",
+            "versioneer.py",
+            string=True,
+        )
 
     def import_test(self):
         import intermol

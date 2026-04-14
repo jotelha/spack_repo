@@ -1,6 +1,7 @@
 from spack.package import *
 import os
 import shutil
+import stat
 
 
 class VmdPlugins(Package):
@@ -11,9 +12,7 @@ class VmdPlugins(Package):
     version(
         "1.9.4a57",
         sha256="de278d0c5d969336d89068e0806fb50aaa0cb0f546ba985d840b279357860679",
-        url="file://{0}/vmd-1.9.4a57.src.tar.gz".format(
-            os.getcwd()
-        ),
+        url="file:///lustre/home/users/gxy/spack/vmd-1.9.4a57.src.tar.gz",
     )
 
     # manual_download = True
@@ -90,7 +89,16 @@ class VmdPlugins(Package):
 
     def setup_build_environment(self, env):
         tcl = self.spec["tcl"]
-        env.set("TCLINC", f"-I{tcl.prefix.include}")
+
+        # Prefer the prefix with actual development headers (tcl.h).
+        # System tcl is often runtime-only (no tcl-devel RPM installed).
+        tcl_inc = tcl.prefix.include
+        if not os.path.isfile(os.path.join(str(tcl_inc), "tcl.h")):
+            # Fall back to conda, which ships complete Tcl dev files.
+            conda_inc = "/lustre/rccs/apl/ap/conda/20260225/include"
+            if os.path.isfile(os.path.join(conda_inc, "tcl.h")):
+                tcl_inc = conda_inc
+        env.set("TCLINC", f"-I{tcl_inc}")
         env.set("TCLLIB", f"-L{tcl.prefix.lib}")
 
         netcdf = self.spec["netcdf-c"]
@@ -135,7 +143,7 @@ class VmdPlugins(Package):
 
         with working_dir(plugins_dir):
 
-            # Patch Tcl version
+            # Patch Tcl version (ensure files are writable first)
             for root, _, files in os.walk(plugins_dir):
                 for filename in files:
                     path = os.path.join(root, filename)
@@ -143,6 +151,10 @@ class VmdPlugins(Package):
                     # Only touch regular files
                     if not os.path.isfile(path):
                         continue
+
+                    # Make writable in case tarball extracted with read-only perms
+                    st = os.stat(path)
+                    os.chmod(path, st.st_mode | stat.S_IWRITE)
 
                     filter_file("tcl8.5", "tcl8.6", path)
 
