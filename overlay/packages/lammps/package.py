@@ -341,6 +341,8 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage, PythonExtension):
     depends_on("netcdf-c+mpi", when="+netcdf")
     depends_on("parallel-netcdf", when="+user-netcdf")
     depends_on("parallel-netcdf", when="+netcdf")
+    depends_on("hdf5+mpi", when="+netcdf")
+    depends_on("hdf5+mpi", when="+user-netcdf")
     depends_on("blas", when="+user-atc")
     depends_on("blas", when="+atc")
     depends_on("lapack", when="+user-atc")
@@ -664,6 +666,18 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage, PythonExtension):
             # for reduced memory use and parallel communication costs
             # for transposing 3d FFT data.
             args.append(self.define("FFT_SINGLE", spec.satisfies("fftw_precision=single")))
+
+        if spec.satisfies("+netcdf") or spec.satisfies("+user-netcdf"):
+            # netcdf-c+mpi depends on hdf5+mpi, but LAMMPS cmake's FindNetCDF
+            # only adds -lnetcdf to the link line (via nc-config --libs).
+            # The parallel HDF5 symbols are therefore unresolved at link time
+            # because the linker finds the serial system HDF5 first.
+            # Explicitly inject the spack HDF5+mpi into the linker flags so
+            # both the executable and shared lib pick up the right libhdf5.
+            hdf5_lib_dir = spec["hdf5"].libs.directories[0]
+            hdf5_link = f"-L{hdf5_lib_dir} -lhdf5_hl -lhdf5 -Wl,-rpath,{hdf5_lib_dir}"
+            args.append(self.define("CMAKE_EXE_LINKER_FLAGS", hdf5_link))
+            args.append(self.define("CMAKE_SHARED_LINKER_FLAGS", hdf5_link))
 
         if spec.satisfies("+user-adios") or spec.satisfies("+adios"):
             args.append(self.define("ADIOS2_DIR", self.spec["adios2"].prefix))
